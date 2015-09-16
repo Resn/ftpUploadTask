@@ -19,11 +19,14 @@ module.exports = function(grunt) {
 
     function uploadToServer(client, queue, filesUploadedCb) {
 
+		var maxAttempts = 5;
+
         function uploadFile(client, fsObject, fileUploadedCb) {
             var dir = path.dirname(fsObject.getDest()) + '/';
             client.mkdir(dir, true, function(err) {
                 if (err) {
-                    throw err;
+					fileUploadedCb(err, fsObject);
+					return;
                 }
 
                 if (grunt.file.isDir(fsObject.getPath())) {
@@ -32,10 +35,6 @@ module.exports = function(grunt) {
                     fileUploadedCb(null, fsObject);
                 } else {
                     client.put(fsObject.getPath(), fsObject.getDest(), function(err) {
-                        if (err) {
-                            throw err;
-                        }
-
                         fileUploadedCb(err, fsObject);
                     });
                 }
@@ -44,18 +43,33 @@ module.exports = function(grunt) {
 
         var progress = new ProgressBar(queue.length);
         async.forEachLimit(queue, 2, function(item, clb) {
-            uploadFile(client, item, function(err, data) {
-                if (!err) {
-                    progress.increment();
 
-                    if (item.shouldSkip()) {
-                        progress.printProgress('--', data.print());
-                    } else {
-                        progress.printProgress('Ok', data.print());
-                    }
-                }
-                clb(err, data);
-            })
+			var attempts = 0;
+
+			var onUpload = function(err, data) {
+				if (!err) {
+					progress.increment();
+
+					if (item.shouldSkip()) {
+						progress.printProgress('--', data.print());
+					} else {
+						progress.printProgress('Ok', data.print());
+					}
+					clb(err, data);
+				} else {
+					if( attempts <= maxAttempts ) {
+						attempts++;
+						grunt.verbose.writeln('[Retry attempt]'.red+' ('+attempts+'/'+maxAttempts+') '+item.getDest());
+						uploadFile(client, item, onUpload);
+					} else {
+						clb(err, data);
+					}
+				}
+
+			};
+
+            uploadFile(client, item, onUpload);
+
         }, function(err, result) {
             filesUploadedCb(err, result);
         });
