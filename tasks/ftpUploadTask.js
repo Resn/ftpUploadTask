@@ -59,7 +59,7 @@ module.exports = function(grunt) {
 				} else {
 					if( attempts <= maxAttempts ) {
 						attempts++;
-						grunt.verbose.writeln('[Retry attempt]'.red+' ('+attempts+'/'+maxAttempts+') '+item.getDest());
+						console.log('[Retry attempt]'.red+' ('+attempts+'/'+maxAttempts+') '+item.getDest());
 						uploadFile(client, item, onUpload);
 					} else {
 						clb(err, data);
